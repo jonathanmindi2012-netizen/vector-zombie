@@ -2,100 +2,167 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Zombie Game</title>
+<title>Zombie Mobile</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
+:root {
+  --green: #00ff88;
+  --dark: #0b0f14;
+}
+
 body {
   margin: 0;
-  background: black;
-  color: #0f0;
-  font-family: Arial;
+  background: radial-gradient(#111, #000);
+  color: white;
+  font-family: Arial, sans-serif;
   overflow: hidden;
 }
-#lobby, #game {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-}
+
+/* ===== LOBBY ===== */
 #lobby {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#card {
+  width: 90%;
+  max-width: 360px;
+  background: linear-gradient(180deg,#0f172a,#020617);
   padding: 20px;
+  border-radius: 20px;
+  box-shadow: 0 0 40px #000;
 }
-button {
-  width: 100%;
-  padding: 15px;
-  margin-top: 10px;
-  font-size: 18px;
-  background: #0f0;
-  border: none;
+
+h1 {
+  text-align: center;
+  color: var(--green);
 }
+
 label {
   display: block;
-  margin-top: 10px;
+  margin-top: 15px;
+  font-size: 14px;
 }
+
+input, select {
+  width: 100%;
+  margin-top: 5px;
+}
+
+button {
+  width: 100%;
+  padding: 14px;
+  margin-top: 20px;
+  font-size: 18px;
+  border-radius: 12px;
+  border: none;
+  background: var(--green);
+  color: black;
+  font-weight: bold;
+}
+
+/* ===== GAME ===== */
+#game {
+  display: none;
+}
+
 canvas {
-  background: #111;
   display: block;
   margin: auto;
+  background: #0a0a0a;
 }
+
+/* ===== UI ===== */
+#ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pad, .fire {
+  pointer-events: auto;
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: rgba(0,255,136,.15);
+  border: 2px solid var(--green);
+}
+
+.pad { bottom: 20px; left: 20px; }
+.fire { bottom: 20px; right: 20px; }
+
 #skills {
   position: absolute;
-  bottom: 10px;
-  width: 100%;
+  top: 10px;
+  right: 10px;
   display: flex;
-  justify-content: space-around;
+  gap: 10px;
+  pointer-events: auto;
 }
+
 .skill {
-  width: 45%;
-  background: #222;
-  color: #0f0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(0,0,0,.6);
+  border: 2px solid var(--green);
+  color: var(--green);
+  font-weight: bold;
 }
 </style>
 </head>
 
 <body>
 
-<!-- LOBBY -->
+<!-- ===== LOBBY ===== -->
 <div id="lobby">
-  <h1>🧟 Zombie Game</h1>
+  <div id="card">
+    <h1>🧟 ZOMBIE MOBILE</h1>
 
-  <label>Sensibilidad
-    <input type="range" id="sens" min="0.5" max="3" step="0.1">
-  </label>
+    <label>Sensibilidad
+      <input type="range" id="sens" min="0.5" max="3" step="0.1">
+    </label>
 
-  <label>Brillo
-    <input type="range" id="bright" min="0.5" max="2" step="0.1">
-  </label>
+    <label>Brillo
+      <input type="range" id="bright" min="0.5" max="2" step="0.1">
+    </label>
 
-  <label>Calidad
-    <select id="quality">
-      <option value="1">Baja</option>
-      <option value="2">Media</option>
-      <option value="3">Alta</option>
-    </select>
-  </label>
+    <label>Calidad
+      <select id="quality">
+        <option value="1">Baja</option>
+        <option value="2">Media</option>
+        <option value="3">Alta</option>
+      </select>
+    </label>
 
-  <button onclick="startGame()">JUGAR</button>
+    <button onclick="startGame()">JUGAR</button>
+  </div>
 </div>
 
-<!-- GAME -->
-<div id="game" style="display:none">
+<!-- ===== GAME ===== -->
+<div id="game">
   <canvas id="canvas" width="360" height="640"></canvas>
 
-  <div id="skills">
-    <button class="skill" onclick="raySkill()">⚡ RAYO (5)</button>
-    <button class="skill" onclick="boomSkill()">💥 BOOM (10)</button>
+  <div id="ui">
+    <div class="pad" id="pad"></div>
+    <div class="fire" id="fire"></div>
+
+    <div id="skills">
+      <div class="skill" onclick="ray()">⚡ 5</div>
+      <div class="skill" onclick="boom()">💥 10</div>
+    </div>
   </div>
 </div>
 
 <script>
 // ===== SETTINGS =====
 const settings = JSON.parse(localStorage.getItem("settings")) || {
-  sens: 1,
-  bright: 1,
-  quality: 2
+  sens: 1, bright: 1, quality: 2
 };
-
 sens.value = settings.sens;
 bright.value = settings.bright;
 quality.value = settings.quality;
@@ -103,11 +170,8 @@ quality.value = settings.quality;
 // ===== VARS =====
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
-
 let player, bullets, zombies, kills;
-let moveTouch = null;
-let rayUsed = false;
-let boomUsed = false;
+let move = false;
 
 // ===== START =====
 function startGame() {
@@ -119,105 +183,76 @@ function startGame() {
   document.body.style.filter = `brightness(${settings.bright})`;
   lobby.style.display = "none";
   game.style.display = "block";
-
-  initGame();
+  init();
 }
 
-function initGame() {
-  player = { x: 180, y: 520, r: 15, life: 100 };
+function init() {
+  player = { x: 180, y: 520, r: 16, life: 100 };
   bullets = [];
   zombies = [];
   kills = 0;
-  rayUsed = false;
-  boomUsed = false;
-
   setInterval(spawnZombie, 1200);
   requestAnimationFrame(loop);
 }
 
-// ===== TOUCH =====
-canvas.addEventListener("touchstart", e => {
-  const t = e.touches[0];
-  if (t.clientX < canvas.width / 2) moveTouch = t;
-  else shoot(t.clientX, t.clientY);
-});
+// ===== CONTROLS =====
+pad.addEventListener("touchstart", ()=> move=true);
+pad.addEventListener("touchend", ()=> move=false);
 
-canvas.addEventListener("touchmove", e => {
-  if (!moveTouch) return;
-  const t = e.touches[0];
-  player.x += (t.clientX - moveTouch.clientX) * settings.sens * 0.1;
-  player.y += (t.clientY - moveTouch.clientY) * settings.sens * 0.1;
-  moveTouch = t;
-});
-
-canvas.addEventListener("touchend", () => moveTouch = null);
-
-// ===== SHOOT =====
-function shoot(x,y){
+fire.addEventListener("touchstart", ()=>{
   bullets.push({
     x: player.x,
     y: player.y,
-    dx: (x-player.x)*0.03,
-    dy: (y-player.y)*0.03
+    dx: 0,
+    dy: -6
   });
-}
+});
 
 // ===== ZOMBIES =====
 function spawnZombie(){
   zombies.push({
-    x: Math.random()*canvas.width,
+    x: Math.random()*360,
     y: -20,
-    r: 15,
-    speed: 0.6 + Math.random()
+    r: 16,
+    speed: 0.6+Math.random()
   });
 }
 
 // ===== SKILLS =====
-function raySkill(){
-  if(kills < 5 || rayUsed) return;
-  rayUsed = true;
-
-  zombies = zombies.filter(z => z.x < player.x-10 || z.x > player.x+10);
+function ray(){
+  if(kills<5) return;
+  zombies = zombies.filter(z => Math.abs(z.x-player.x)>15);
 }
-
-function boomSkill(){
-  if(kills < 10 || boomUsed) return;
-  boomUsed = true;
-  zombies = [];
+function boom(){
+  if(kills<10) return;
+  zombies=[];
 }
 
 // ===== LOOP =====
 function loop(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.clearRect(0,0,360,640);
 
-  // PLAYER
-  ctx.fillStyle="#0f0";
+  if(move) player.x += settings.sens*2;
+
+  ctx.fillStyle=varGreen="#00ff88";
   ctx.beginPath();
   ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
   ctx.fill();
 
-  // BULLETS
   ctx.fillStyle="#fff";
   bullets.forEach(b=>{
-    b.x+=b.dx; b.y+=b.dy;
-    ctx.fillRect(b.x,b.y,4,4);
+    b.y+=b.dy;
+    ctx.fillRect(b.x,b.y,4,8);
   });
 
-  // ZOMBIES
   zombies.forEach(z=>{
-    const dx=player.x-z.x;
-    const dy=player.y-z.y;
-    const d=Math.hypot(dx,dy);
-    z.x+=(dx/d)*z.speed;
-    z.y+=(dy/d)*z.speed;
-
+    z.y+=z.speed;
     ctx.fillStyle="red";
     ctx.beginPath();
     ctx.arc(z.x,z.y,z.r,0,Math.PI*2);
     ctx.fill();
   });
 
-  // COLLISIONS
   bullets.forEach((b,bi)=>{
     zombies.forEach((z,zi)=>{
       if(Math.hypot(b.x-z.x,b.y-z.y)<z.r){
@@ -228,20 +263,11 @@ function loop(){
     });
   });
 
-  zombies.forEach((z,zi)=>{
-    if(Math.hypot(player.x-z.x,player.y-z.y)<z.r+player.r){
-      zombies.splice(zi,1);
-      player.life-=10;
-    }
-  });
-
-  // HUD
   ctx.fillStyle="#0f0";
   ctx.fillText("❤️ "+player.life,10,20);
   ctx.fillText("☠️ "+kills,10,40);
 
-  if(player.life>0) requestAnimationFrame(loop);
-  else ctx.fillText("GAME OVER",130,320);
+  requestAnimationFrame(loop);
 }
 </script>
 </body>
