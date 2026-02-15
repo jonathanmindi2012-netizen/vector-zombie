@@ -2,15 +2,15 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Vector zombie</title>
+<title>Vector Zombies</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
 body{
   margin:0;
   background:#000;
-  color:white;
-  font-family:Arial;
+  color:#fff;
+  font-family:Arial, sans-serif;
   overflow:hidden;
 }
 
@@ -18,27 +18,28 @@ body{
 #lobby{
   position:fixed;
   inset:0;
-  background:url("https://i.imgur.com/8Km9tLL.jpg") center/cover;
+  background:linear-gradient(135deg,#050505,#111);
   display:flex;
   justify-content:center;
   align-items:center;
 }
 #menu{
-  backdrop-filter:blur(10px);
   background:rgba(0,0,0,.6);
-  padding:25px;
+  backdrop-filter:blur(10px);
+  padding:30px;
   border-radius:20px;
+  text-align:center;
   width:85%;
   max-width:360px;
 }
 #menu h1{
-  text-align:center;
   color:#00ff99;
+  margin-bottom:20px;
 }
 #menu button{
   width:100%;
   padding:18px;
-  font-size:20px;
+  font-size:22px;
   border:none;
   border-radius:15px;
   background:#00ff99;
@@ -49,7 +50,6 @@ body{
 #game{display:none;}
 canvas{
   display:block;
-  margin:auto;
   background:#0a0a0a;
 }
 
@@ -72,8 +72,8 @@ canvas{
   position:absolute;
   bottom:20px;
   left:20px;
-  width:110px;
-  height:110px;
+  width:120px;
+  height:120px;
   border-radius:50%;
   background:rgba(255,255,255,.05);
   border:2px solid rgba(255,255,255,.3);
@@ -81,9 +81,9 @@ canvas{
 .joy::after{
   content:"";
   position:absolute;
-  inset:30px;
+  inset:35px;
   border-radius:50%;
-  background:rgba(255,255,255,.2);
+  background:rgba(255,255,255,.25);
 }
 
 .btn{
@@ -92,16 +92,16 @@ canvas{
   width:80px;
   height:80px;
   border-radius:50%;
-  background:rgba(0,255,153,.2);
+  background:rgba(0,255,153,.25);
   border:2px solid #00ff99;
   display:flex;
   justify-content:center;
   align-items:center;
-  font-size:30px;
+  font-size:32px;
 }
 #fire{bottom:25px; right:25px;}
 #ray{bottom:120px; right:30px;}
-#boom{bottom:210px; right:30px;}
+#boom{bottom:215px; right:30px;}
 </style>
 </head>
 
@@ -110,16 +110,16 @@ canvas{
 <div id="lobby">
   <div id="menu">
     <h1>🧟 ZOMBIE SHOOTER</h1>
-    <button onclick="start()">PLAY</button>
+    <button onclick="startGame()">PLAY</button>
   </div>
 </div>
 
 <div id="game">
-  <canvas id="c" width="360" height="640"></canvas>
+  <canvas id="canvas"></canvas>
 
   <div id="hud">
-    ❤️ <span id="life">100</span><br>
-    ☠️ <span id="kills">0</span>
+    ❤️ Vida: <span id="life">100</span><br>
+    ☠️ Kills: <span id="kills">0</span>
   </div>
 
   <div id="controls">
@@ -131,51 +131,125 @@ canvas{
 </div>
 
 <script>
-const c=document.getElementById("c");
-const x=c.getContext("2d");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 
-let p,b,z,k,move=false;
+function resize(){
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+resize();
+addEventListener("resize", resize);
 
-function start(){
+let player, bullets, zombies, kills;
+let moving=false;
+let moveDir=0;
+
+function startGame(){
   lobby.style.display="none";
   game.style.display="block";
-  p={x:180,y:520,r:16,life:100};
-  b=[]; z=[]; k=0;
-  setInterval(()=>z.push({x:Math.random()*360,y:-20,r:16,s:1}),1000);
-  loop();
-}
 
-move.addEventListener("touchstart",()=>move=true);
-move.addEventListener("touchend",()=>move=false);
-fire.addEventListener("touchstart",()=>b.push({x:p.x,y:p.y,dy:-7}));
+  player = {x:canvas.width/2,y:canvas.height-120,r:18,life:100};
+  bullets=[];
+  zombies=[];
+  kills=0;
 
-ray.addEventListener("touchstart",()=>{ if(k>=5) z=z.filter(e=>Math.abs(e.x-p.x)>15); });
-boom.addEventListener("touchstart",()=>{ if(k>=10) z=[]; });
-
-function loop(){
-  x.clearRect(0,0,360,640);
-  if(move) p.x+=2;
-  x.fillStyle="#00ff99";
-  x.beginPath(); x.arc(p.x,p.y,p.r,0,7); x.fill();
-
-  x.fillStyle="white";
-  b.forEach(e=>{ e.y+=e.dy; x.fillRect(e.x,e.y,4,8); });
-
-  z.forEach((e,i)=>{
-    e.y+=e.s;
-    x.fillStyle="red";
-    x.beginPath(); x.arc(e.x,e.y,e.r,0,7); x.fill();
-    b.forEach((bb,bi)=>{
-      if(Math.hypot(bb.x-e.x,bb.y-e.y)<e.r){
-        z.splice(i,1); b.splice(bi,1); k++;
-      }
-    });
-  });
-
-  life.textContent=p.life;
-  kills.textContent=k;
+  setInterval(spawnZombie,1200);
   requestAnimationFrame(loop);
 }
+
+function spawnZombie(){
+  zombies.push({
+    x:Math.random()*canvas.width,
+    y:-30,
+    r:18,
+    speed:1+Math.random()
+  });
+}
+
+/* ===== CONTROLS ===== */
+move.addEventListener("touchstart",e=>{
+  const x = e.touches[0].clientX;
+  moveDir = x < innerWidth/2 ? -1 : 1;
+  moving=true;
+});
+move.addEventListener("touchend",()=>moving=false);
+
+fire.addEventListener("touchstart",()=>{
+  bullets.push({x:player.x,y:player.y,dy:-8});
+});
+
+ray.addEventListener("touchstart",()=>{
+  if(kills>=5){
+    zombies = zombies.filter(z=>Math.abs(z.x-player.x)>20);
+    kills-=5;
+  }
+});
+
+boom.addEventListener("touchstart",()=>{
+  if(kills>=10){
+    zombies=[];
+    kills-=10;
+  }
+});
+
+/* ===== LOOP ===== */
+function loop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if(moving){
+    player.x += moveDir*4;
+    player.x = Math.max(player.r, Math.min(canvas.width-player.r, player.x));
+  }
+
+  // PLAYER
+  ctx.fillStyle="#00ff99";
+  ctx.beginPath();
+  ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
+  ctx.fill();
+
+  // BULLETS
+  ctx.fillStyle="#fff";
+  bullets.forEach((b,i)=>{
+    b.y+=b.dy;
+    ctx.fillRect(b.x-2,b.y-8,4,8);
+    if(b.y<0) bullets.splice(i,1);
+  });
+
+  // ZOMBIES
+  zombies.forEach((z,zi)=>{
+    z.y+=z.speed;
+    ctx.fillStyle="red";
+    ctx.beginPath();
+    ctx.arc(z.x,z.y,z.r,0,Math.PI*2);
+    ctx.fill();
+
+    bullets.forEach((b,bi)=>{
+      if(Math.hypot(b.x-z.x,b.y-z.y)<z.r){
+        zombies.splice(zi,1);
+        bullets.splice(bi,1);
+        kills++;
+      }
+    });
+
+    if(Math.hypot(player.x-z.x,player.y-z.y)<z.r+player.r){
+      zombies.splice(zi,1);
+      player.life-=10;
+    }
+  });
+
+  life.textContent = player.life;
+  kills.textContent = kills;
+
+  if(player.life>0){
+    requestAnimationFrame(loop);
+  }else{
+    ctx.fillStyle="#fff";
+    ctx.font="40px Arial";
+    ctx.fillText("GAME OVER",canvas.width/2-120,canvas.height/2);
+  }
+}
 </script>
+
 </body>
 </html>
