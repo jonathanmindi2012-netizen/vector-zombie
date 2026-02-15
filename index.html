@@ -5,58 +5,128 @@
 <title>Vector Zombie</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: #0d1110;
-    color: #64ffda;
-    font-family: Arial, sans-serif;
-    overflow: hidden;
-  }
-  canvas {
-    display: block;
-    background: #111;
-  }
-  #ui {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    font-size: 18px;
-  }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #0d1110;
+  color: #64ffda;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+}
+.hidden { display: none; }
+
+#lobby {
+  position: fixed;
+  inset: 0;
+  background: #0d1110;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+}
+
+button {
+  padding: 12px 20px;
+  background: #64ffda;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+label { width: 80%; }
+
+canvas {
+  display: block;
+  background: #111;
+}
+#hud {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  font-size: 16px;
+}
 </style>
 </head>
 
 <body>
-<div id="ui">❤️ Vida: <span id="vida">100</span></div>
-<canvas id="game"></canvas>
+
+<!-- LOBBY -->
+<div id="lobby">
+  <h1>VECTOR ZOMBIE</h1>
+
+  <label>
+    Calidad:
+    <select id="quality">
+      <option value="low">Baja</option>
+      <option value="medium">Media</option>
+      <option value="high">Alta</option>
+    </select>
+  </label>
+
+  <label>
+    Sensibilidad:
+    <input type="range" id="sens" min="1" max="10" value="5">
+  </label>
+
+  <label>
+    Brillo:
+    <input type="range" id="bright" min="50" max="150" value="100">
+  </label>
+
+  <button onclick="startGame()">▶ JUGAR</button>
+</div>
+
+<!-- JUEGO -->
+<div id="game" class="hidden">
+  <div id="hud">
+    ❤️ Vida: <span id="vida">100</span><br>
+    ☠️ Kills: <span id="kills">0</span>
+  </div>
+  <canvas id="canvas"></canvas>
+</div>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-
+let canvas, ctx;
 let vida = 100;
+let kills = 0;
+let sensitivity = 5;
 
-const player = {
-  x: canvas.width / 2,
-  y: canvas.height / 2,
-  size: 20,
-  speed: 5
-};
-
+const player = { x: 0, y: 0, size: 15 };
 let zombies = [];
+let bullets = [];
 
-function crearZombie() {
+function startGame() {
+  sensitivity = +document.getElementById("sens").value;
+
+  document.getElementById("lobby").classList.add("hidden");
+  document.getElementById("game").classList.remove("hidden");
+
+  canvas = document.getElementById("canvas");
+  ctx = canvas.getContext("2d");
+  resize();
+
+  player.x = canvas.width / 2;
+  player.y = canvas.height / 2;
+
+  setInterval(spawnZombie, 1200);
+  requestAnimationFrame(loop);
+}
+
+function resize() {
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+window.onresize = resize;
+
+function spawnZombie() {
   zombies.push({
     x: Math.random() * canvas.width,
     y: Math.random() * canvas.height,
-    size: 20,
-    speed: 1.5
+    size: 18,
+    speed: 1.2
   });
 }
-
-setInterval(crearZombie, 1500);
 
 window.addEventListener("touchmove", e => {
   const t = e.touches[0];
@@ -64,45 +134,62 @@ window.addEventListener("touchmove", e => {
   player.y = t.clientY;
 });
 
-function update() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+window.addEventListener("touchstart", () => {
+  bullets.push({
+    x: player.x,
+    y: player.y,
+    vx: 0,
+    vy: -6
+  });
+});
+
+function loop() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
   // jugador
   ctx.fillStyle = "#64ffda";
   ctx.beginPath();
-  ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+  ctx.arc(player.x, player.y, player.size, 0, Math.PI*2);
   ctx.fill();
+
+  // balas
+  ctx.fillStyle = "white";
+  bullets.forEach(b => {
+    b.y += b.vy;
+    ctx.fillRect(b.x-2, b.y-6, 4, 8);
+  });
 
   // zombies
   ctx.fillStyle = "#ff4444";
-  zombies.forEach(z => {
+  zombies.forEach((z, zi) => {
     const dx = player.x - z.x;
     const dy = player.y - z.y;
-    const dist = Math.hypot(dx, dy);
+    const d = Math.hypot(dx, dy);
 
-    z.x += dx / dist * z.speed;
-    z.y += dy / dist * z.speed;
+    z.x += dx/d * z.speed;
+    z.y += dy/d * z.speed;
 
     ctx.beginPath();
-    ctx.arc(z.x, z.y, z.size, 0, Math.PI * 2);
+    ctx.arc(z.x, z.y, z.size, 0, Math.PI*2);
     ctx.fill();
 
-    if (dist < player.size + z.size) {
-      vida -= 1;
+    bullets.forEach((b, bi) => {
+      if (Math.hypot(b.x-z.x, b.y-z.y) < z.size) {
+        zombies.splice(zi,1);
+        bullets.splice(bi,1);
+        kills++;
+        document.getElementById("kills").textContent = kills;
+      }
+    });
+
+    if (d < player.size + z.size) {
+      vida--;
       document.getElementById("vida").textContent = vida;
     }
   });
 
-  if (vida > 0) {
-    requestAnimationFrame(update);
-  } else {
-    ctx.fillStyle = "white";
-    ctx.font = "40px Arial";
-    ctx.fillText("GAME OVER", canvas.width / 2 - 100, canvas.height / 2);
-  }
+  if (vida > 0) requestAnimationFrame(loop);
 }
-
-update();
 </script>
 </body>
 </html>
