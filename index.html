@@ -2,49 +2,53 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Vector Zombie</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zombie Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
 <style>
-html, body {
+body {
   margin: 0;
-  padding: 0;
-  background: #0d1110;
-  color: #64ffda;
-  font-family: Arial, sans-serif;
+  background: black;
+  color: #0f0;
+  font-family: Arial;
   overflow: hidden;
 }
-.hidden { display: none; }
-
+#lobby, #game {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
 #lobby {
-  position: fixed;
-  inset: 0;
-  background: #0d1110;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 15px;
+  padding: 20px;
 }
-
 button {
-  padding: 12px 20px;
-  background: #64ffda;
-  border: none;
+  width: 100%;
+  padding: 15px;
+  margin-top: 10px;
   font-size: 18px;
-  cursor: pointer;
+  background: #0f0;
+  border: none;
 }
-
-label { width: 80%; }
-
-canvas {
+label {
   display: block;
-  background: #111;
+  margin-top: 10px;
 }
-#hud {
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  font-size: 16px;
+canvas {
+  background: #111;
+  display: block;
+  margin: auto;
+}
+#skills {
+  position: absolute;
+  bottom: 10px;
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+}
+.skill {
+  width: 45%;
+  background: #222;
+  color: #0f0;
 }
 </style>
 </head>
@@ -53,142 +57,191 @@ canvas {
 
 <!-- LOBBY -->
 <div id="lobby">
-  <h1>VECTOR ZOMBIE</h1>
+  <h1>🧟 Zombie Game</h1>
 
-  <label>
-    Calidad:
+  <label>Sensibilidad
+    <input type="range" id="sens" min="0.5" max="3" step="0.1">
+  </label>
+
+  <label>Brillo
+    <input type="range" id="bright" min="0.5" max="2" step="0.1">
+  </label>
+
+  <label>Calidad
     <select id="quality">
-      <option value="low">Baja</option>
-      <option value="medium">Media</option>
-      <option value="high">Alta</option>
+      <option value="1">Baja</option>
+      <option value="2">Media</option>
+      <option value="3">Alta</option>
     </select>
   </label>
 
-  <label>
-    Sensibilidad:
-    <input type="range" id="sens" min="1" max="10" value="5">
-  </label>
-
-  <label>
-    Brillo:
-    <input type="range" id="bright" min="50" max="150" value="100">
-  </label>
-
-  <button onclick="startGame()">▶ JUGAR</button>
+  <button onclick="startGame()">JUGAR</button>
 </div>
 
-<!-- JUEGO -->
-<div id="game" class="hidden">
-  <div id="hud">
-    ❤️ Vida: <span id="vida">100</span><br>
-    ☠️ Kills: <span id="kills">0</span>
+<!-- GAME -->
+<div id="game" style="display:none">
+  <canvas id="canvas" width="360" height="640"></canvas>
+
+  <div id="skills">
+    <button class="skill" onclick="raySkill()">⚡ RAYO (5)</button>
+    <button class="skill" onclick="boomSkill()">💥 BOOM (10)</button>
   </div>
-  <canvas id="canvas"></canvas>
 </div>
 
 <script>
-let canvas, ctx;
-let vida = 100;
-let kills = 0;
-let sensitivity = 5;
+// ===== SETTINGS =====
+const settings = JSON.parse(localStorage.getItem("settings")) || {
+  sens: 1,
+  bright: 1,
+  quality: 2
+};
 
-const player = { x: 0, y: 0, size: 15 };
-let zombies = [];
-let bullets = [];
+sens.value = settings.sens;
+bright.value = settings.bright;
+quality.value = settings.quality;
 
+// ===== VARS =====
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let player, bullets, zombies, kills;
+let moveTouch = null;
+let rayUsed = false;
+let boomUsed = false;
+
+// ===== START =====
 function startGame() {
-  sensitivity = +document.getElementById("sens").value;
+  settings.sens = +sens.value;
+  settings.bright = +bright.value;
+  settings.quality = +quality.value;
+  localStorage.setItem("settings", JSON.stringify(settings));
 
-  document.getElementById("lobby").classList.add("hidden");
-  document.getElementById("game").classList.remove("hidden");
+  document.body.style.filter = `brightness(${settings.bright})`;
+  lobby.style.display = "none";
+  game.style.display = "block";
 
-  canvas = document.getElementById("canvas");
-  ctx = canvas.getContext("2d");
-  resize();
+  initGame();
+}
 
-  player.x = canvas.width / 2;
-  player.y = canvas.height / 2;
+function initGame() {
+  player = { x: 180, y: 520, r: 15, life: 100 };
+  bullets = [];
+  zombies = [];
+  kills = 0;
+  rayUsed = false;
+  boomUsed = false;
 
   setInterval(spawnZombie, 1200);
   requestAnimationFrame(loop);
 }
 
-function resize() {
-  canvas.width = innerWidth;
-  canvas.height = innerHeight;
-}
-window.onresize = resize;
-
-function spawnZombie() {
-  zombies.push({
-    x: Math.random() * canvas.width,
-    y: Math.random() * canvas.height,
-    size: 18,
-    speed: 1.2
-  });
-}
-
-window.addEventListener("touchmove", e => {
+// ===== TOUCH =====
+canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
-  player.x = t.clientX;
-  player.y = t.clientY;
+  if (t.clientX < canvas.width / 2) moveTouch = t;
+  else shoot(t.clientX, t.clientY);
 });
 
-window.addEventListener("touchstart", () => {
+canvas.addEventListener("touchmove", e => {
+  if (!moveTouch) return;
+  const t = e.touches[0];
+  player.x += (t.clientX - moveTouch.clientX) * settings.sens * 0.1;
+  player.y += (t.clientY - moveTouch.clientY) * settings.sens * 0.1;
+  moveTouch = t;
+});
+
+canvas.addEventListener("touchend", () => moveTouch = null);
+
+// ===== SHOOT =====
+function shoot(x,y){
   bullets.push({
     x: player.x,
     y: player.y,
-    vx: 0,
-    vy: -6
+    dx: (x-player.x)*0.03,
+    dy: (y-player.y)*0.03
   });
-});
+}
 
-function loop() {
+// ===== ZOMBIES =====
+function spawnZombie(){
+  zombies.push({
+    x: Math.random()*canvas.width,
+    y: -20,
+    r: 15,
+    speed: 0.6 + Math.random()
+  });
+}
+
+// ===== SKILLS =====
+function raySkill(){
+  if(kills < 5 || rayUsed) return;
+  rayUsed = true;
+
+  zombies = zombies.filter(z => z.x < player.x-10 || z.x > player.x+10);
+}
+
+function boomSkill(){
+  if(kills < 10 || boomUsed) return;
+  boomUsed = true;
+  zombies = [];
+}
+
+// ===== LOOP =====
+function loop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // jugador
-  ctx.fillStyle = "#64ffda";
+  // PLAYER
+  ctx.fillStyle="#0f0";
   ctx.beginPath();
-  ctx.arc(player.x, player.y, player.size, 0, Math.PI*2);
+  ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
   ctx.fill();
 
-  // balas
-  ctx.fillStyle = "white";
-  bullets.forEach(b => {
-    b.y += b.vy;
-    ctx.fillRect(b.x-2, b.y-6, 4, 8);
+  // BULLETS
+  ctx.fillStyle="#fff";
+  bullets.forEach(b=>{
+    b.x+=b.dx; b.y+=b.dy;
+    ctx.fillRect(b.x,b.y,4,4);
   });
 
-  // zombies
-  ctx.fillStyle = "#ff4444";
-  zombies.forEach((z, zi) => {
-    const dx = player.x - z.x;
-    const dy = player.y - z.y;
-    const d = Math.hypot(dx, dy);
+  // ZOMBIES
+  zombies.forEach(z=>{
+    const dx=player.x-z.x;
+    const dy=player.y-z.y;
+    const d=Math.hypot(dx,dy);
+    z.x+=(dx/d)*z.speed;
+    z.y+=(dy/d)*z.speed;
 
-    z.x += dx/d * z.speed;
-    z.y += dy/d * z.speed;
-
+    ctx.fillStyle="red";
     ctx.beginPath();
-    ctx.arc(z.x, z.y, z.size, 0, Math.PI*2);
+    ctx.arc(z.x,z.y,z.r,0,Math.PI*2);
     ctx.fill();
+  });
 
-    bullets.forEach((b, bi) => {
-      if (Math.hypot(b.x-z.x, b.y-z.y) < z.size) {
-        zombies.splice(zi,1);
+  // COLLISIONS
+  bullets.forEach((b,bi)=>{
+    zombies.forEach((z,zi)=>{
+      if(Math.hypot(b.x-z.x,b.y-z.y)<z.r){
         bullets.splice(bi,1);
+        zombies.splice(zi,1);
         kills++;
-        document.getElementById("kills").textContent = kills;
       }
     });
+  });
 
-    if (d < player.size + z.size) {
-      vida--;
-      document.getElementById("vida").textContent = vida;
+  zombies.forEach((z,zi)=>{
+    if(Math.hypot(player.x-z.x,player.y-z.y)<z.r+player.r){
+      zombies.splice(zi,1);
+      player.life-=10;
     }
   });
 
-  if (vida > 0) requestAnimationFrame(loop);
+  // HUD
+  ctx.fillStyle="#0f0";
+  ctx.fillText("❤️ "+player.life,10,20);
+  ctx.fillText("☠️ "+kills,10,40);
+
+  if(player.life>0) requestAnimationFrame(loop);
+  else ctx.fillText("GAME OVER",130,320);
 }
 </script>
 </body>
