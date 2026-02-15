@@ -2,116 +2,103 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Zombie Mobile</title>
+<title>Zombie Mobile NEW</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
-:root {
-  --green: #00ff88;
-  --dark: #0b0f14;
+:root{
+  --green:#00ff99;
 }
-
-body {
-  margin: 0;
-  background: radial-gradient(#111, #000);
-  color: white;
-  font-family: Arial, sans-serif;
-  overflow: hidden;
+body{
+  margin:0;
+  background:#050505;
+  color:white;
+  font-family:Arial;
+  overflow:hidden;
 }
 
 /* ===== LOBBY ===== */
-#lobby {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+#lobby{
+  position:fixed;
+  inset:0;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  background:radial-gradient(#111,#000);
 }
-
-#card {
-  width: 90%;
-  max-width: 360px;
-  background: linear-gradient(180deg,#0f172a,#020617);
-  padding: 20px;
-  border-radius: 20px;
-  box-shadow: 0 0 40px #000;
+#panel{
+  width:90%;
+  max-width:360px;
+  background:#0c111a;
+  border-radius:20px;
+  padding:20px;
+  box-shadow:0 0 40px black;
 }
-
-h1 {
-  text-align: center;
-  color: var(--green);
+h1{
+  text-align:center;
+  color:var(--green);
 }
-
-label {
-  display: block;
-  margin-top: 15px;
-  font-size: 14px;
+label{
+  display:block;
+  margin-top:15px;
 }
-
-input, select {
-  width: 100%;
-  margin-top: 5px;
+input,select{
+  width:100%;
 }
-
-button {
-  width: 100%;
-  padding: 14px;
-  margin-top: 20px;
-  font-size: 18px;
-  border-radius: 12px;
-  border: none;
-  background: var(--green);
-  color: black;
-  font-weight: bold;
+button{
+  width:100%;
+  margin-top:20px;
+  padding:15px;
+  font-size:18px;
+  border:none;
+  border-radius:15px;
+  background:var(--green);
+  font-weight:bold;
 }
 
 /* ===== GAME ===== */
-#game {
-  display: none;
+#game{
+  display:none;
 }
-
-canvas {
-  display: block;
-  margin: auto;
-  background: #0a0a0a;
+canvas{
+  display:block;
+  margin:auto;
+  background:#0a0a0a;
 }
 
 /* ===== UI ===== */
-#ui {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+#ui{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
 }
-
-.pad, .fire {
-  pointer-events: auto;
-  position: absolute;
-  width: 90px;
-  height: 90px;
-  border-radius: 50%;
-  background: rgba(0,255,136,.15);
-  border: 2px solid var(--green);
+.circle{
+  pointer-events:auto;
+  position:absolute;
+  width:90px;
+  height:90px;
+  border-radius:50%;
+  background:rgba(0,255,153,.15);
+  border:2px solid var(--green);
 }
+#move{bottom:20px;left:20px;}
+#fire{bottom:20px;right:20px;}
 
-.pad { bottom: 20px; left: 20px; }
-.fire { bottom: 20px; right: 20px; }
-
-#skills {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
-  gap: 10px;
-  pointer-events: auto;
+#skills{
+  position:absolute;
+  top:10px;
+  right:10px;
+  display:flex;
+  gap:10px;
+  pointer-events:auto;
 }
-
-.skill {
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: rgba(0,0,0,.6);
-  border: 2px solid var(--green);
-  color: var(--green);
-  font-weight: bold;
+.skill{
+  padding:10px 14px;
+  border-radius:12px;
+  background:#000;
+  border:2px solid var(--green);
+  color:var(--green);
+  font-weight:bold;
 }
 </style>
 </head>
@@ -120,7 +107,7 @@ canvas {
 
 <!-- ===== LOBBY ===== -->
 <div id="lobby">
-  <div id="card">
+  <div id="panel">
     <h1>🧟 ZOMBIE MOBILE</h1>
 
     <label>Sensibilidad
@@ -148,8 +135,8 @@ canvas {
   <canvas id="canvas" width="360" height="640"></canvas>
 
   <div id="ui">
-    <div class="pad" id="pad"></div>
-    <div class="fire" id="fire"></div>
+    <div id="move" class="circle"></div>
+    <div id="fire" class="circle"></div>
 
     <div id="skills">
       <div class="skill" onclick="ray()">⚡ 5</div>
@@ -161,70 +148,66 @@ canvas {
 <script>
 // ===== SETTINGS =====
 const settings = JSON.parse(localStorage.getItem("settings")) || {
-  sens: 1, bright: 1, quality: 2
+  sens:1, bright:1, quality:2
 };
-sens.value = settings.sens;
-bright.value = settings.bright;
-quality.value = settings.quality;
+sens.value=settings.sens;
+bright.value=settings.bright;
+quality.value=settings.quality;
 
 // ===== VARS =====
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-let player, bullets, zombies, kills;
-let move = false;
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+let player,bullets,zombies,kills;
+let moving=false;
 
 // ===== START =====
-function startGame() {
-  settings.sens = +sens.value;
-  settings.bright = +bright.value;
-  settings.quality = +quality.value;
-  localStorage.setItem("settings", JSON.stringify(settings));
+function startGame(){
+  settings.sens=+sens.value;
+  settings.bright=+bright.value;
+  settings.quality=+quality.value;
+  localStorage.setItem("settings",JSON.stringify(settings));
 
-  document.body.style.filter = `brightness(${settings.bright})`;
-  lobby.style.display = "none";
-  game.style.display = "block";
+  document.body.style.filter=`brightness(${settings.bright})`;
+  lobby.style.display="none";
+  game.style.display="block";
+
   init();
 }
 
-function init() {
-  player = { x: 180, y: 520, r: 16, life: 100 };
-  bullets = [];
-  zombies = [];
-  kills = 0;
-  setInterval(spawnZombie, 1200);
+function init(){
+  player={x:180,y:520,r:16,life:100};
+  bullets=[];
+  zombies=[];
+  kills=0;
+  setInterval(spawnZombie,1200);
   requestAnimationFrame(loop);
 }
 
 // ===== CONTROLS =====
-pad.addEventListener("touchstart", ()=> move=true);
-pad.addEventListener("touchend", ()=> move=false);
+move.addEventListener("touchstart",()=>moving=true);
+move.addEventListener("touchend",()=>moving=false);
 
-fire.addEventListener("touchstart", ()=>{
-  bullets.push({
-    x: player.x,
-    y: player.y,
-    dx: 0,
-    dy: -6
-  });
+fire.addEventListener("touchstart",()=>{
+  bullets.push({x:player.x,y:player.y,dy:-7});
 });
 
 // ===== ZOMBIES =====
 function spawnZombie(){
   zombies.push({
-    x: Math.random()*360,
-    y: -20,
-    r: 16,
-    speed: 0.6+Math.random()
+    x:Math.random()*360,
+    y:-20,
+    r:16,
+    speed:0.6+Math.random()
   });
 }
 
 // ===== SKILLS =====
 function ray(){
-  if(kills<5) return;
-  zombies = zombies.filter(z => Math.abs(z.x-player.x)>15);
+  if(kills<5)return;
+  zombies=zombies.filter(z=>Math.abs(z.x-player.x)>15);
 }
 function boom(){
-  if(kills<10) return;
+  if(kills<10)return;
   zombies=[];
 }
 
@@ -232,14 +215,14 @@ function boom(){
 function loop(){
   ctx.clearRect(0,0,360,640);
 
-  if(move) player.x += settings.sens*2;
+  if(moving) player.x+=settings.sens*2;
 
-  ctx.fillStyle=varGreen="#00ff88";
+  ctx.fillStyle="#00ff99";
   ctx.beginPath();
   ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
   ctx.fill();
 
-  ctx.fillStyle="#fff";
+  ctx.fillStyle="white";
   bullets.forEach(b=>{
     b.y+=b.dy;
     ctx.fillRect(b.x,b.y,4,8);
